@@ -11,23 +11,24 @@ import profile from '../assets/figma/source/nav-profile.svg'
 import profileActive from '../assets/figma/source/nav-profile-active.svg'
 
 export function BottomNav({ screen, cartCount, onNavigate }: { screen: Screen; cartCount: number; onNavigate: (screen: Screen) => void }) {
-  if (!['home', 'search', 'category', 'campaign', 'cart', 'mypage', 'orders', 'favorites'].includes(screen)) return null
+  if (!['home', 'search', 'category', 'campaign', 'cart', 'mypage', 'orders', 'favorites', 'history'].includes(screen)) return null
   const items = [
     { label: 'ホーム', icon: ['home', 'search'].includes(screen) ? homeActive : homeInactive, target: 'home' as Screen },
     { label: 'カテゴリー', icon: screen === 'category' ? categoryActive : category, target: 'category' as Screen },
     { label: 'キャンペーン', icon: screen === 'campaign' ? campaignActive : campaign, target: 'campaign' as Screen },
     { label: 'カート', icon: screen === 'cart' ? cartActive : cartInactive, target: 'cart' as Screen },
-    { label: 'マイページ', icon: ['mypage', 'orders', 'favorites'].includes(screen) ? profileActive : profile, target: 'mypage' as Screen },
+    { label: 'マイページ', icon: ['mypage', 'orders', 'favorites', 'history'].includes(screen) ? profileActive : profile, target: 'mypage' as Screen },
   ]
   return (
     <nav className="bottom-nav" aria-label="モバイルナビゲーション">
       {items.map((item) => {
         const active = item.target === screen
           || (item.target === 'home' && screen === 'search')
-          || (item.target === 'mypage' && ['orders', 'favorites'].includes(screen))
+          || (item.target === 'mypage' && ['orders', 'favorites', 'history'].includes(screen))
         return (
           <button key={item.label} className={active ? 'active' : ''} onClick={() => item.target && onNavigate(item.target)}>
-            <span className="nav-icon"><img src={item.icon} alt="" />{item.label === 'カート' && cartCount > 0 && <b>{cartCount}</b>}</span>
+            <span className="nav-icon"><img src={item.icon} alt="" /></span>
+            {item.label === 'カート' && cartCount > 0 && <b className={`nav-cart-badge ${cartCount > 9 ? 'nav-cart-badge--compact' : ''}`}>{cartCount}</b>}
             <span>{item.label}</span>
           </button>
         )

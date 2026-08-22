@@ -13,6 +13,10 @@ export type Screen =
   | 'orders'
   | 'addresses'
   | 'address-form'
+  | 'quick-results'
+  | 'history'
+
+export type QuickEntry = '人気商品' | 'タイムセール' | '新着' | 'ランキング' | 'クーポン'
 
 export type Product = {
   id: string
@@ -22,9 +26,19 @@ export type Product = {
   image: string
   badge?: string
   badgeTone?: 'neutral' | 'sale'
-  section: 'trend' | 'recommended'
+  section: 'trend' | 'recommended' | 'category'
+  category?: 'milk' | 'diaper' | 'bottle' | 'pump' | 'other'
+  age?: 'newborn' | '6-12' | '1plus' | '2plus'
+  functions?: Array<'organic' | 'a2' | 'grassFed' | 'dailySupport'>
+  isPopular?: boolean
+  isTimeSale?: boolean
+  isNew?: boolean
+  newArrivalOrder?: number
+  ranking?: number
   specs?: Record<string, string>
   gallery?: string[]
+  detailImages?: string[]
+  detailSections?: Array<{ title: string; body: string }>
 }
 
 export type CartItem = {

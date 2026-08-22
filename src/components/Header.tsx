@@ -3,7 +3,7 @@ import bell from '../assets/figma/source/home-notification.svg'
 import back from '../assets/figma/source/detail-back.svg'
 import share from '../assets/figma/source/detail-share.svg'
 import filter from '../assets/figma/source/cart-filter.svg'
-import type { Screen } from '../types'
+import type { QuickEntry, Screen } from '../types'
 import { SearchInput } from './SearchInput'
 
 type Props = {
@@ -11,6 +11,7 @@ type Props = {
   cartCount: number
   onNavigate: (screen: Screen) => void
   onBack?: () => void
+  quickEntryTitle?: QuickEntry
 }
 
 const title: Partial<Record<Screen, string>> = {
@@ -20,9 +21,10 @@ const title: Partial<Record<Screen, string>> = {
   favorites: 'お気に入り商品',
   orders: 'マイページ',
   addresses: 'お届け先住所',
+  history: '閲覧履歴',
 }
 
-export function Header({ screen, cartCount, onNavigate, onBack }: Props) {
+export function Header({ screen, cartCount, onNavigate, onBack, quickEntryTitle }: Props) {
   const isHome = screen === 'home'
   const isTopLevel = ['home', 'search', 'category', 'campaign', 'mypage'].includes(screen)
   const isSuccess = screen === 'success' || screen === 'processing'
@@ -38,10 +40,10 @@ export function Header({ screen, cartCount, onNavigate, onBack }: Props) {
         </button>
 
         {isTopLevel ? <div className="desktop-search"><SearchInput onOpen={() => onNavigate('search')} /></div> : screen !== 'cart' && (
-          <button className="icon-button mobile-back" onClick={onBack} aria-label="戻る"><img src={back} alt="" /></button>
+          <button className="icon-button mobile-back" onClick={onBack} aria-label="戻る"><span className="source-back-icon"><img src={back} alt="" /></span></button>
         )}
 
-        {!isTopLevel && <h1 className="header-title">{title[screen]}</h1>}
+        {!isTopLevel && <h1 className="header-title">{screen === 'quick-results' ? quickEntryTitle : title[screen]}</h1>}
 
         <nav className="desktop-nav" aria-label="メインナビゲーション">
           <button className={isHome ? 'active' : ''} onClick={() => onNavigate('home')}>ホーム</button>

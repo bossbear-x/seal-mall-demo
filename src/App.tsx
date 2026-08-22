@@ -8,16 +8,19 @@ import { CheckoutScreen } from './components/CheckoutScreen'
 import { DetailScreen } from './components/DetailScreen'
 import { FavoritesScreen } from './components/FavoritesScreen'
 import { Header } from './components/Header'
+import { HistoryScreen } from './components/HistoryScreen'
 import { HomeScreen } from './components/HomeScreen'
 import { MyPageScreen } from './components/MyPageScreen'
 import { OrdersScreen } from './components/OrdersScreen'
 import { ProcessingScreen } from './components/ProcessingScreen'
+import { QuickResultsScreen } from './components/QuickResultsScreen'
 import { SearchScreen } from './components/SearchScreen'
 import { StatusBar } from './components/StatusBar'
 import { SuccessScreen } from './components/SuccessScreen'
 import { usePersistentState } from './hooks/usePersistentState'
 import { productById, products } from './data/products'
-import type { Address, CartItem, OrderSnapshot, PaymentMethod, Product, Screen } from './types'
+import { calculateCouponDiscount } from './data/coupons'
+import type { Address, CartItem, OrderSnapshot, PaymentMethod, Product, QuickEntry, Screen } from './types'
 
 const SHIPPING = 0
 const defaultAddresses: Address[] = [
@@ -34,22 +37,38 @@ export default function App() {
   const [favorites, setFavorites] = usePersistentState<string[]>('seal-favorites', [])
   const [addresses, setAddresses] = usePersistentState<Address[]>('seal-addresses', defaultAddresses)
   const [orders, setOrders] = usePersistentState<OrderSnapshot[]>('seal-orders', [])
+  const [viewedProductIds, setViewedProductIds] = usePersistentState<string[]>('seal-viewed-products', [])
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('credit')
   const [editingAddress, setEditingAddress] = useState<Address | null>(null)
   const [order, setOrder] = useState<OrderSnapshot | null>(orders[0] ?? null)
+  const [quickEntry, setQuickEntry] = useState<QuickEntry>('人気商品')
+  const [addressReturnTo, setAddressReturnTo] = useState<'mypage' | 'checkout'>('mypage')
+  const [checkoutProductIds, setCheckoutProductIds] = useState<string[]>([])
+  const [orderFilter, setOrderFilter] = useState('注文履歴')
+  const [appliedCouponId, setAppliedCouponId] = useState<string | null>(null)
 
   const detailedItems = useMemo(() => cartItems.map((item) => ({ ...item, product: productById(item.productId) })), [cartItems])
-  const subtotal = detailedItems.reduce((sum, item) => sum + item.product.price * item.quantity, 0)
-  const total = subtotal + SHIPPING
   const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0)
+  const checkoutItems = detailedItems.filter((item) => checkoutProductIds.includes(item.productId))
+  const checkoutSubtotal = checkoutItems.reduce((sum, item) => sum + item.product.price * item.quantity, 0)
+  const couponDiscount = calculateCouponDiscount(appliedCouponId, checkoutItems, checkoutSubtotal, SHIPPING)
+  const checkoutTotal = Math.max(0, checkoutSubtotal + SHIPPING - couponDiscount)
 
   const navigate = (next: Screen) => {
     setPreviousScreen(screen)
     setScreen(next)
     window.scrollTo({ top: 0, behavior: 'instant' })
+    window.requestAnimationFrame(() => document.querySelector<HTMLElement>('.app')?.scrollTo({ top: 0, behavior: 'instant' }))
   }
 
-  const selectProduct = (product: Product) => { setSelectedProduct(product); navigate('detail') }
+  const selectProduct = (product: Product) => {
+    setSelectedProduct(product)
+    if (products.some((item) => item.id === product.id)) {
+      setViewedProductIds((current) => [product.id, ...current.filter((id) => id !== product.id)].slice(0, 12))
+    }
+    navigate('detail')
+  }
+  const openQuickEntry = (entry: QuickEntry) => { setQuickEntry(entry); navigate('quick-results') }
   const addToCart = (product: Product, quantity: number) => {
     setCartItems((current) => {
       const existing = current.find((item) => item.productId === product.id)
@@ -59,51 +78,69 @@ export default function App() {
   }
   const changeQuantity = (productId: string, quantity: number) => { if (quantity >= 1) setCartItems((current) => current.map((item) => item.productId === productId ? { ...item, quantity } : item)) }
   const removeItem = (productId: string) => setCartItems((current) => current.filter((item) => item.productId !== productId))
+  const restoreItem = (productId: string, quantity: number) => setCartItems((current) => current.some((item) => item.productId === productId) ? current : [...current, { productId, quantity }])
+  const repurchaseItem = (productId: string) => {
+    setCartItems((current) => {
+      const existing = current.find((item) => item.productId === productId)
+      return existing ? current.map((item) => item.productId === productId ? { ...item, quantity: item.quantity + 1 } : item) : [...current, { productId, quantity: 1 }]
+    })
+    navigate('cart')
+  }
+  const startCheckout = (productIds: string[]) => { setCheckoutProductIds(productIds); navigate('checkout') }
   const toggleFavorite = () => setFavorites((current) => current.includes(selectedProduct.id) ? current.filter((id) => id !== selectedProduct.id) : [selectedProduct.id, ...current])
 
   const pay = () => {
     const defaultAddress = addresses.find((item) => item.isDefault) ?? addresses[0]
-    const snapshot: OrderSnapshot = { orderId: `CN-AU-${new Date().getFullYear()}-${String(Date.now()).slice(-8)}`, items: detailedItems, itemCount: cartCount, subtotal, shipping: SHIPPING, total, paymentMethod, address: `${defaultAddress.prefecture}${defaultAddress.street} ${defaultAddress.building}`, paidAt: new Date().toISOString() }
+    const checkoutItemCount = checkoutItems.reduce((sum, item) => sum + item.quantity, 0)
+    const snapshot: OrderSnapshot = { orderId: `CN-AU-${new Date().getFullYear()}-${String(Date.now()).slice(-8)}`, items: checkoutItems, itemCount: checkoutItemCount, subtotal: checkoutSubtotal, shipping: SHIPPING, total: checkoutTotal, paymentMethod, address: `${defaultAddress.prefecture}${defaultAddress.street} ${defaultAddress.building}`, paidAt: new Date().toISOString() }
     setOrder(snapshot); setOrders((current) => [snapshot, ...current]); navigate('processing')
-    window.setTimeout(() => { setScreen('success'); setCartItems([]) }, 950)
+    window.setTimeout(() => { setScreen('success'); setCartItems([]); setCheckoutProductIds([]); setAppliedCouponId(null) }, 1800)
   }
 
   const back = () => {
     if (screen === 'detail') navigate(previousScreen === 'detail' ? 'home' : previousScreen)
     else if (screen === 'checkout') navigate('cart')
-    else if (screen === 'orders' || screen === 'favorites' || screen === 'addresses') navigate('mypage')
+    else if (screen === 'addresses') navigate(addressReturnTo)
+    else if (screen === 'orders' || screen === 'favorites' || screen === 'history') navigate('mypage')
+    else if (screen === 'quick-results') navigate('home')
     else navigate('home')
   }
 
   const saveAddress = (address: Address) => {
-    setAddresses((current) => editingAddress
-      ? current.map((item) => item.id === address.id ? address : item)
-      : [address, ...current.map((item) => ({ ...item, isDefault: false }))])
+    setAddresses((current) => {
+      const updated = editingAddress
+        ? current.map((item) => item.id === address.id ? address : item)
+        : [address, ...current]
+      return address.isDefault ? updated.map((item) => ({ ...item, isDefault: item.id === address.id })) : updated
+    })
     setEditingAddress(null)
-    navigate('addresses')
+    navigate(addressReturnTo === 'checkout' ? 'checkout' : 'addresses')
   }
   const setDefaultAddress = (id: string) => setAddresses((current) => current.map((item) => ({ ...item, isDefault: item.id === id })))
-  const hasHeader = !['address-form', 'processing', 'success'].includes(screen)
-  const hasStatus = !['address-form', 'processing'].includes(screen)
+  const shellScreen: Screen = screen === 'address-form' ? 'addresses' : screen
+  const hasHeader = !['processing', 'success'].includes(screen)
+  const hasStatus = screen !== 'processing'
 
   return (
     <div className={`app app--${screen}`}>
       {hasStatus && <StatusBar />}
-      {hasHeader && <Header screen={screen} cartCount={cartCount} onNavigate={navigate} onBack={back} />}
-      {screen === 'home' && <HomeScreen onSelect={selectProduct} />}
+      {hasHeader && <Header screen={shellScreen} cartCount={cartCount} onNavigate={navigate} onBack={back} quickEntryTitle={quickEntry} />}
+      {screen === 'home' && <HomeScreen onSelect={selectProduct} onQuickEntry={openQuickEntry} />}
       {screen === 'search' && <SearchScreen onSelect={selectProduct} onHome={() => navigate('home')} />}
-      {screen === 'category' && <CategoryScreen onSelect={selectProduct} />}
+      {screen === 'quick-results' && <QuickResultsScreen entry={quickEntry} onSelect={selectProduct} appliedCouponId={appliedCouponId} onApplyCoupon={setAppliedCouponId} />}
+      {screen === 'category' && <CategoryScreen onSelect={selectProduct} onSearch={() => navigate('search')} />}
       {screen === 'campaign' && <CampaignScreen onHome={() => navigate('home')} onSearch={() => navigate('search')} />}
       {screen === 'detail' && <DetailScreen product={selectedProduct} onAdd={addToCart} isFavorite={favorites.includes(selectedProduct.id)} onFavorite={toggleFavorite} />}
       {screen === 'favorites' && <FavoritesScreen products={favorites.map(productById)} onSelect={selectProduct} />}
-      {screen === 'cart' && <CartScreen items={detailedItems} total={total} onQuantity={changeQuantity} onRemove={removeItem} onCheckout={() => navigate('checkout')} onContinue={() => navigate('home')} />}
-      {screen === 'checkout' && <CheckoutScreen items={detailedItems} subtotal={subtotal} shipping={SHIPPING} total={total} payment={paymentMethod} address={addresses.find((item) => item.isDefault) ?? addresses[0]} onPayment={setPaymentMethod} onPay={pay} onAddress={() => navigate('addresses')} />}
+      {screen === 'history' && <HistoryScreen products={viewedProductIds.map((id) => products.find((product) => product.id === id)).filter((product): product is Product => Boolean(product))} onSelect={selectProduct} />}
+      {screen === 'cart' && <CartScreen items={detailedItems} onQuantity={changeQuantity} onRemove={removeItem} onRestore={restoreItem} onCheckout={startCheckout} onContinue={() => navigate('home')} />}
+      {screen === 'checkout' && <CheckoutScreen items={checkoutItems} subtotal={checkoutSubtotal} shipping={SHIPPING} couponDiscount={couponDiscount} total={checkoutTotal} payment={paymentMethod} address={addresses.find((item) => item.isDefault) ?? addresses[0]} onPayment={setPaymentMethod} onPay={pay} onAddress={() => { setAddressReturnTo('checkout'); navigate('addresses') }} />}
       {screen === 'processing' && <ProcessingScreen />}
       {screen === 'success' && order && <SuccessScreen order={order} onHome={() => navigate('home')} onOrders={() => navigate('orders')} />}
-      {screen === 'mypage' && <MyPageScreen favoritesCount={favorites.length} onNavigate={navigate} />}
-      {screen === 'orders' && <OrdersScreen orders={orders} />}
-      {screen === 'addresses' && <AddressListScreen addresses={addresses} onAdd={() => { setEditingAddress(null); navigate('address-form') }} onEdit={(address) => { setEditingAddress(address); navigate('address-form') }} onSetDefault={setDefaultAddress} />}
-      {screen === 'address-form' && <AddressFormScreen initialAddress={editingAddress} onSave={saveAddress} />}
+      {screen === 'mypage' && <MyPageScreen favoritesCount={favorites.length} onNavigate={(next) => { if (next === 'addresses') setAddressReturnTo('mypage'); navigate(next) }} onOrders={(filter) => { setOrderFilter(filter); navigate('orders') }} />}
+      {screen === 'orders' && <OrdersScreen orders={orders} initialFilter={orderFilter} onRepurchase={repurchaseItem} />}
+      {(screen === 'addresses' || screen === 'address-form') && <AddressListScreen addresses={addresses} onAdd={() => { setEditingAddress(null); navigate('address-form') }} onEdit={(address) => { setEditingAddress(address); navigate('address-form') }} onSetDefault={setDefaultAddress} />}
+      {screen === 'address-form' && <div className="address-modal-backdrop" role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget) navigate('addresses') }}><AddressFormScreen initialAddress={editingAddress} onSave={saveAddress} /></div>}
       <BottomNav screen={screen} cartCount={cartCount} onNavigate={navigate} />
     </div>
   )

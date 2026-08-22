@@ -1,11 +1,11 @@
-import search from '../assets/figma/search.svg'
 import illustration from '../assets/figma/campaign-empty.png'
 import { Button } from './Button'
+import { HeaderSearchButton } from './HeaderSearchButton'
 
 export function CampaignScreen({ onHome, onSearch }: { onHome: () => void; onSearch: () => void }) {
   return (
     <main className="standalone-screen campaign-screen">
-      <div className="screen-title-row"><h1>キャンペーン</h1><button onClick={onSearch}><img src={search} alt="" /></button></div>
+      <div className="screen-title-row"><h1>キャンペーン</h1><HeaderSearchButton onClick={onSearch} /></div>
       <section className="campaign-empty-state">
         <img src={illustration} alt="" />
         <h2>ただいま準備中です</h2>
