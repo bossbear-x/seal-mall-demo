@@ -6,7 +6,9 @@ import './styles/global.css'
 const isMobileDemoEntry = window.location.pathname === '/'
 const isForcedMobilePreview = new URLSearchParams(window.location.search).get('mobile-demo') === '1'
 
-if (isForcedMobilePreview) document.documentElement.classList.add('force-mobile-layout')
+// The root page owns the centered phone presentation. Only its iframe needs
+// the forced 393px mobile layout.
+if (isForcedMobilePreview && !isMobileDemoEntry) document.documentElement.classList.add('force-mobile-layout')
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
